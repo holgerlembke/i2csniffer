@@ -82,7 +82,8 @@ void IRAM_ATTR incrementatorx(int16_t &v) { // advance ring buffer ptr with end 
 }
 
 //************************************************************************************
-#define incrementatorm(v) v == (RingSize - 1) ? 0 : v + 1;
+#define incrementatoro(v) v == (RingSize - 1) ? 0 : v + 1;
+#define incrementator(v) v = v == (RingSize - 1) ? 0 : v + 1;
 
 //************************************************************************************
 int16_t peekRingDataLen() {
@@ -93,7 +94,7 @@ int16_t peekRingDataLen() {
   int16_t tmp = RingReadPtr;
 
   int16_t len = ring[tmp];
-  tmp = incrementatorm(tmp);
+  incrementator(tmp);
 
   return (len + (ring[tmp] >> 8));
 }
@@ -122,7 +123,7 @@ void IRAM_ATTR SCLIntr() // RISING
 
       if (RingBitCntr == 8) {
         ring[RingWritePtr] = RingBitBuffer;
-        RingWritePtr = incrementatorm(RingWritePtr);
+        incrementator(RingWritePtr);
         RingCounter++;
         RingBitBuffer = 0;
       }
@@ -145,7 +146,7 @@ void IRAM_ATTR SDAIntr() { // CHANGE
         // save the packet len
         lock++;
         ring[RingWriteHeaderPtr] = RingCounter & 0xff;
-        RingWriteHeaderPtr = incrementatorm(RingWriteHeaderPtr);
+        incrementator(RingWriteHeaderPtr);
         ring[RingWriteHeaderPtr] = RingCounter >> 8;
         lock--;
       }
@@ -153,9 +154,9 @@ void IRAM_ATTR SDAIntr() { // CHANGE
       if ( (i2cstate == i2cnone) ) { // a start condition
         RingWriteHeaderPtr = RingWritePtr;
         ring[RingWritePtr] = 0;
-        RingWritePtr = incrementatorm(RingWritePtr);
+        incrementator(RingWritePtr);
         ring[RingWritePtr] = 0;
-        RingWritePtr = incrementatorm(RingWritePtr);
+        incrementator(RingWritePtr);
         RingBitCntr = 0;
         RingCounter = 0;
         RingBitBuffer = 0;
@@ -188,6 +189,15 @@ void i2cSpyend() {
 //************************************************************************************
 void setupI2CSpyAgent(void) {
   i2cSpybegin();
+
+  /** /
+  int t = 1023;
+  incrementator(t);
+  Serial.println(t);
+  t=42;
+  incrementator(t);
+  Serial.println(t);
+  /**/
 }
 
 //************************************************************************************
@@ -199,8 +209,8 @@ void loopI2CSpyAgent(void) {
 
     int len = peekRingDataLen();
     while ( (RingReadPtr != RingWritePtr) && (len > 0) ) {
-      RingReadPtr = incrementatorm(RingReadPtr);
-      RingReadPtr = incrementatorm(RingReadPtr);
+      incrementator(RingReadPtr);
+      incrementator(RingReadPtr);
       // Limiter
       if (len > 200) {
         Serial.print("\nRingWritePtr: ");
@@ -222,7 +232,7 @@ void loopI2CSpyAgent(void) {
           } else {
             Serial.print(ring[RingReadPtr], HEX);
           }
-          RingReadPtr = incrementatorm(RingReadPtr);
+          incrementator(RingReadPtr);
           len--;
           Serial.print(" ");
         }
