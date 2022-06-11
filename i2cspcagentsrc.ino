@@ -77,9 +77,12 @@ uint32_t IRAM_ATTR getClockCount()
 }
 
 //************************************************************************************
-void IRAM_ATTR incrementator(int16_t &v) { // advance ring buffer ptr with end management
+void IRAM_ATTR incrementatorx(int16_t &v) { // advance ring buffer ptr with end management
   v = v == (RingSize - 1) ? 0 : v + 1;
 }
+
+//************************************************************************************
+#define incrementatorm(v) v == (RingSize - 1) ? 0 : v + 1;
 
 //************************************************************************************
 int16_t peekRingDataLen() {
@@ -90,7 +93,7 @@ int16_t peekRingDataLen() {
   int16_t tmp = RingReadPtr;
 
   int16_t len = ring[tmp];
-  incrementator(tmp);
+  tmp = incrementatorm(tmp);
 
   return (len + (ring[tmp] >> 8));
 }
@@ -100,15 +103,17 @@ void IRAM_ATTR SCLIntr() // RISING
 {
   // waste some time... does it help?
   // wikipedia: Wait for SDA value to be written by target, minimum of 4us for standard mode
+  // Code in progress, not really thought out...
   /** /
-  uint32_t cs = ESP.getCycleCount();
-  int cyclius = 1000 / ESP.getCpuFreqMHz();  // 240 -> in MHz, 4us
-  do {
+    uint32_t cs = ESP.getCycleCount();
+    int cyclius = 1000 / ESP.getCpuFreqMHz();  // 240 -> in MHz, 4us
+    do {
     __asm__ __volatile__ ("nop");
-  } while (cs - ESP.getCycleCount() < 130);
-  /**/
+    } while (cs - ESP.getCycleCount() < 130);
+    /**/
 
-  bool newStateSDA = digitalRead(PinSDASpy);
+  // Saving a call
+  bool newStateSDA = gpio_get_level((gpio_num_t)PinSDASpy); // digitalRead(PinSDASpy);
 
   if ( (i2cstate == i2cstartbitreceived) ) {
     if (RingBitCntr < 8) { // Data
@@ -117,7 +122,7 @@ void IRAM_ATTR SCLIntr() // RISING
 
       if (RingBitCntr == 8) {
         ring[RingWritePtr] = RingBitBuffer;
-        incrementator(RingWritePtr);
+        RingWritePtr = incrementatorm(RingWritePtr);
         RingCounter++;
         RingBitBuffer = 0;
       }
@@ -129,10 +134,10 @@ void IRAM_ATTR SCLIntr() // RISING
 
 //************************************************************************************
 void IRAM_ATTR SDAIntr() { // CHANGE
-  bool newStateSCL = digitalRead(PinSCLSpy);
+  bool newStateSCL = gpio_get_level((gpio_num_t)PinSCLSpy); // digitalRead(PinSCLSpy);
 
   if (newStateSCL) { // SCL is high
-    bool newStateSDA = digitalRead(PinSDASpy);
+    bool newStateSDA = gpio_get_level((gpio_num_t)PinSDASpy); // digitalRead(PinSDASpy);
     if (newStateSDA) { // rising
       if ( (i2cstate != i2cnone) ) { // a stop condition
         i2cstate = i2cnone;
@@ -140,7 +145,7 @@ void IRAM_ATTR SDAIntr() { // CHANGE
         // save the packet len
         lock++;
         ring[RingWriteHeaderPtr] = RingCounter & 0xff;
-        incrementator(RingWriteHeaderPtr);
+        RingWriteHeaderPtr = incrementatorm(RingWriteHeaderPtr);
         ring[RingWriteHeaderPtr] = RingCounter >> 8;
         lock--;
       }
@@ -148,9 +153,9 @@ void IRAM_ATTR SDAIntr() { // CHANGE
       if ( (i2cstate == i2cnone) ) { // a start condition
         RingWriteHeaderPtr = RingWritePtr;
         ring[RingWritePtr] = 0;
-        incrementator(RingWritePtr);
+        RingWritePtr = incrementatorm(RingWritePtr);
         ring[RingWritePtr] = 0;
-        incrementator(RingWritePtr);
+        RingWritePtr = incrementatorm(RingWritePtr);
         RingBitCntr = 0;
         RingCounter = 0;
         RingBitBuffer = 0;
@@ -194,8 +199,8 @@ void loopI2CSpyAgent(void) {
 
     int len = peekRingDataLen();
     while ( (RingReadPtr != RingWritePtr) && (len > 0) ) {
-      incrementator(RingReadPtr);
-      incrementator(RingReadPtr);
+      RingReadPtr = incrementatorm(RingReadPtr);
+      RingReadPtr = incrementatorm(RingReadPtr);
       // Limiter
       if (len > 200) {
         Serial.print("\nRingWritePtr: ");
@@ -217,7 +222,7 @@ void loopI2CSpyAgent(void) {
           } else {
             Serial.print(ring[RingReadPtr], HEX);
           }
-          incrementator(RingReadPtr);
+          RingReadPtr = incrementatorm(RingReadPtr);
           len--;
           Serial.print(" ");
         }
