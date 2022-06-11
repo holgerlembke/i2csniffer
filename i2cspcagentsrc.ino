@@ -82,9 +82,10 @@ void IRAM_ATTR incrementatorx(int16_t &v) { // advance ring buffer ptr with end 
 }
 
 //************************************************************************************
-#define incrementatoro(v) v == (RingSize - 1) ? 0 : v + 1;
 #define incrementator(v) v = v == (RingSize - 1) ? 0 : v + 1;
 
+#pragma GCC push_options
+#pragma GCC optimize ("O2")
 //************************************************************************************
 int16_t peekRingDataLen() {
   if (lock > 0) {
@@ -166,6 +167,7 @@ void IRAM_ATTR SDAIntr() { // CHANGE
     }
   }
 }
+#pragma GCC pop_options
 
 //************************************************************************************
 void i2cSpybegin() {
